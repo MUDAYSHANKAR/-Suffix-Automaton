@@ -1,0 +1,116 @@
+import collections
+
+class SuffixAutomaton:
+    class State:
+        def __init__(self):
+            self.len = 0
+            self.link = -1
+            self.next = {}
+            self.count = 0
+            self.is_cloned = False
+
+    def __init__(self, text: str):
+        self.states = [self.State()]
+        self.last = 0
+        self._build(text)
+        self._calculate_counts()
+
+    def _build(self, text: str):
+        for char in text:
+            self._extend(char)
+
+    def _extend(self, char: str):
+        new_state_idx = len(self.states)
+        self.states.append(self.State())
+        self.states[new_state_idx].len = self.states[self.last].len + 1
+        self.states[new_state_idx].count = 1
+        
+        p = self.last
+        while p != -1 and char not in self.states[p].next:
+            self.states[p].next[char] = new_state_idx
+            p = self.states[p].link
+        
+        if p == -1:
+            self.states[new_state_idx].link = 0
+        else:
+            q = self.states[p].next[char]
+            if self.states[q].len == self.states[p].len + 1:
+                self.states[new_state_idx].link = q
+            else:
+                clone_idx = len(self.states)
+                self.states.append(self.State())
+                clone_state = self.states[clone_idx]
+                
+                clone_state.len = self.states[p].len + 1
+                clone_state.next = self.states[q].next.copy()
+                clone_state.link = self.states[q].link
+                clone_state.is_cloned = True
+
+                while p != -1 and self.states[p].next.get(char) == q:
+                    self.states[p].next[char] = clone_idx
+                    p = self.states[p].link
+                
+                self.states[q].link = clone_idx
+                self.states[new_state_idx].link = clone_idx
+        
+        self.last = new_state_idx
+
+    def _calculate_counts(self):
+        sorted_states = sorted(range(len(self.states)), key=lambda i: self.states[i].len, reverse=True)
+        
+        for state_idx in sorted_states:
+            if self.states[state_idx].link != -1:
+                link_idx = self.states[state_idx].link
+                if not self.states[state_idx].is_cloned:
+                    self.states[link_idx].count += self.states[state_idx].count
+
+    def _find_state(self, pattern: str):
+        current_state = 0
+        for char in pattern:
+            if char not in self.states[current_state].next:
+                return -1
+            current_state = self.states[current_state].next[char]
+        return current_state
+
+    def check_substring(self, pattern: str) -> bool:
+        if not pattern:
+            return True
+        return self._find_state(pattern) != -1
+
+    def count_substring(self, pattern: str) -> int:
+        if not pattern:
+            return 0
+        state_idx = self._find_state(pattern)
+        if state_idx == -1:
+            return 0
+        return self.states[state_idx].count
+
+# --- Example Usage ---
+text = "abacaba"
+sa = SuffixAutomaton(text)
+
+print(f"Text: '{text}'\n")
+
+# --- Substring Checking ---
+print("--- Substring Checking ---")
+patterns_to_check = ["aba", "aca", "baca", "caba", "abab", "d"]
+for p in patterns_to_check:
+    result = sa.check_substring(p)
+    print(f"Is '{p}' a substring? {result}")
+
+# --- Substring Counting ---
+print("\n--- Substring Counting ---")
+patterns_to_count = ["a", "b", "ab", "aba", "ac", "x"]
+for p in patterns_to_count:
+    count = sa.count_substring(p)
+    print(f"Occurrences of '{p}': {count}")
+
+print("\n" + "="*20 + "\n")
+
+text2 = "banana"
+sa2 = SuffixAutomaton(text2)
+print(f"Text: '{text2}'\n")
+print(f"Occurrences of 'ana': {sa2.count_substring('ana')}") # Expected: 2
+print(f"Occurrences of 'na': {sa2.count_substring('na')}")   # Expected: 2
+print(f"Occurrences of 'a': {sa2.count_substring('a')}")     # Expected: 3
+print(f"Is 'banan' a substring? {sa2.check_substring('banan')}") # Expected: True
